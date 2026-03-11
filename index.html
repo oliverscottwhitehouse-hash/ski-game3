@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Ski Resort Simulator</title>
+
+<style>
+
+body{
+margin:0;
+overflow:hidden;
+font-family:Arial;
+background:#9ed8ff;
+}
+
+canvas{
+display:block;
+background:white;
+}
+
+#ui{
+position:absolute;
+left:10px;
+top:10px;
+background:white;
+padding:10px;
+border-radius:10px;
+width:200px;
+}
+
+#shop{
+position:absolute;
+right:10px;
+top:10px;
+background:white;
+padding:10px;
+border-radius:10px;
+width:200px;
+}
+
+button{
+width:100%;
+margin-top:5px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<canvas id="game"></canvas>
+
+<div id="ui">
+
+Money: $<span id="money">0</span><br>
+Trail: <span id="trail">Green</span>
+
+<h4>Injuries</h4>
+<div id="injuries"></div>
+
+<h4>Mission</h4>
+<div id="mission">Complete a trail</div>
+
+</div>
+
+<div id="shop">
+
+<h3>Shop</h3>
+
+Better Skis $50
+<button onclick="buySkis()">Buy</button>
+
+Clothing $30
+<button onclick="buyClothes()">Buy</button>
+
+Helmet $40
+<button onclick="buyHelmet()">Buy</button>
+
+</div>
+
+<script>
+
+const canvas=document.getElementById("game")
+const ctx=canvas.getContext("2d")
+
+canvas.width=window.innerWidth
+canvas.height=window.innerHeight
+
+let keys={}
+
+document.addEventListener("keydown",e=>keys[e.key.toLowerCase()]=true)
+document.addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false)
+
+let money=0
+
+let trails=[
+{name:"Green",reward:1,difficulty:1,color:"#4cff4c"},
+{name:"Blue",reward:2,difficulty:2,color:"#4ca6ff"},
+{name:"Black",reward:10,difficulty:3,color:"#111"},
+{name:"Double Black",reward:25,difficulty:4,color:"#333"},
+{name:"Triple Black",reward:50,difficulty:5,color:"#444"},
+{name:"Skull",reward:100,difficulty:6,color:"#990000"},
+{name:"Double Skull",reward:250,difficulty:7,color:"#cc0000"},
+{name:"Triple Skull",reward:500,difficulty:8,color:"#660000"}
+]
+
+let currentTrail=trails[0]
+
+let player={
+x:canvas.width/2,
+y:canvas.height*.7,
+vx:0,
+speed:5,
+spin:0,
+flip:0,
+grinding:false,
+skis:1,
+clothes:1,
+helmet:false
+}
+
+let obstacles=[]
+let rails=[]
+let jumps=[]
+let forks=[]
+let npcs=[]
+let injuries=[]
+
+function randTrail(){
+
+return trails[Math.floor(Math.random()*trails.length)]
+
+}
+
+function spawnTerrain(){
+
+if(Math.random()<.3){
+
+obstacles.push({
+x:Math.random()*canvas.width,
+y:-20
+})
+
+}
+
+if(Math.random()<.1){
+
+rails.push({
+x:Math.random()*canvas.width,
+y:-20,
+length:80
+})
+
+}
+
+if(Math.random()<.15){
+
+jumps.push({
+x:Math.random()*canvas.width,
+y:-20
+})
+
+}
+
+}
+
+setInterval(spawnTerrain,400)
+
+function spawnFork(){
+
+forks.push({
+y:-40,
+left:randTrail(),
+right:randTrail()
+})
+
+}
+
+setInterval(spawnFork,8000)
+
+function spawnNPC(){
+
+npcs.push({
+x:Math.random()*canvas.width,
+y:-50,
+speed:4+Math.random()*3
+})
+
+}
+
+setInterval(spawnNPC,3000)
+
+function update(){
+
+let control=1
+
+if(injuries.includes("sprained legs"))control*=.7
+if(injuries.includes("broken legs"))control*=.4
+if(injuries.includes("concussion"))control*=.6
+
+if(keys["a"])player.vx-=.4*control
+if(keys["d"])player.vx+=.4*control
+
+player.vx*=.9
+
+player.x+=player.vx
+
+player.speed=5+currentTrail.difficulty+player.skis
+
+if(keys["q"])player.spin+=5
+if(keys["e"])player.flip+=5
+
+for(let o of obstacles)o.y+=player.speed
+for(let r of rails)r.y+=player.speed
+for(let j of jumps)j.y+=player.speed
+for(let f of forks)f.y+=player.speed
+
+for(let n of npcs){
+
+n.y+=n.speed
+
+if(Math.abs(n.x-player.x)<15 && Math.abs(n.y-player.y)<15){
+
+crash()
+
+}
+
+}
+
+checkCollisions()
+
+}
+
+function checkCollisions(){
+
+for(let o of obstacles){
+
+if(Math.abs(o.x-player.x)<20 && Math.abs(o.y-player.y)<20){
+
+crash()
+
+}
+
+}
+
+for(let r of rails){
+
+if(Math.abs(r.x-player.x)<20 && Math.abs(r.y-player.y)<10){
+
+player.grinding=true
+
+}
+
+}
+
+for(let j of jumps){
+
+if(Math.abs(j.x-player.x)<20 && Math.abs(j.y-player.y)<10){
+
+player.spin+=10
+player.flip+=5
+
+}
+
+}
+
+for(let f of forks){
+
+if(Math.abs(f.y-player.y)<20){
+
+if(player.x<canvas.width/2)currentTrail=f.left
+else currentTrail=f.right
+
+money+=currentTrail.reward
+
+document.getElementById("trail").innerText=currentTrail.name
+document.getElementById("money").innerText=money
+
+}
+
+}
+
+}
+
+function crash(){
+
+player.vx=0
+
+giveInjury()
+
+}
+
+function giveInjury(){
+
+let list=[
+"sprained legs",
+"sprained arms",
+"broken ribs",
+"concussion",
+"coma",
+"brain bleed",
+"broken arms",
+"broken legs"
+]
+
+let i=list[Math.floor(Math.random()*list.length)]
+
+if(!injuries.includes(i))injuries.push(i)
+
+document.getElementById("injuries").innerHTML=injuries.join("<br>")
+
+if(i=="coma"||i=="brain bleed")wipeProgress()
+
+}
+
+function wipeProgress(){
+
+money=0
+player.skis=1
+player.clothes=1
+injuries=[]
+
+alert("Severe injury! You lost your gear.")
+
+}
+
+function drawTree(x,y){
+
+ctx.fillStyle="green"
+
+ctx.beginPath()
+ctx.moveTo(x,y-20)
+ctx.lineTo(x-15,y+10)
+ctx.lineTo(x+15,y+10)
+ctx.fill()
+
+ctx.fillStyle="brown"
+ctx.fillRect(x-3,y+10,6,10)
+
+}
+
+function drawRail(r){
+
+ctx.fillStyle="gray"
+ctx.fillRect(r.x-40,r.y,80,4)
+
+}
+
+function drawJump(j){
+
+ctx.fillStyle="#ddd"
+
+ctx.beginPath()
+ctx.moveTo(j.x-20,j.y)
+ctx.lineTo(j.x+20,j.y)
+ctx.lineTo(j.x+10,j.y-10)
+ctx.lineTo(j.x-10,j.y-10)
+ctx.fill()
+
+}
+
+function drawFork(f){
+
+ctx.fillStyle=f.left.color
+ctx.fillRect(0,f.y,canvas.width/2,10)
+
+ctx.fillStyle=f.right.color
+ctx.fillRect(canvas.width/2,f.y,canvas.width/2,10)
+
+}
+
+function drawNPC(n){
+
+ctx.fillStyle="blue"
+
+ctx.beginPath()
+ctx.arc(n.x,n.y,8,0,Math.PI*2)
+ctx.fill()
+
+}
+
+function drawPlayer(){
+
+ctx.save()
+
+ctx.translate(player.x,player.y)
+ctx.rotate(player.spin*Math.PI/180)
+
+ctx.fillStyle="red"
+
+ctx.beginPath()
+ctx.arc(0,0,10,0,Math.PI*2)
+ctx.fill()
+
+ctx.fillStyle="black"
+
+ctx.fillRect(-12,10,24,4)
+ctx.fillRect(-12,16,24,4)
+
+ctx.restore()
+
+}
+
+function hallucinations(){
+
+if(injuries.includes("concussion")||injuries.includes("brain bleed")){
+
+for(let i=0;i<6;i++){
+
+ctx.fillStyle="rgba(255,0,255,.3)"
+
+ctx.beginPath()
+ctx.arc(Math.random()*canvas.width,Math.random()*canvas.height,10,0,Math.PI*2)
+ctx.fill()
+
+}
+
+}
+
+}
+
+function draw(){
+
+ctx.fillStyle="white"
+ctx.fillRect(0,0,canvas.width,canvas.height)
+
+for(let o of obstacles)drawTree(o.x,o.y)
+for(let r of rails)drawRail(r)
+for(let j of jumps)drawJump(j)
+for(let f of forks)drawFork(f)
+for(let n of npcs)drawNPC(n)
+
+drawPlayer()
+
+hallucinations()
+
+}
+
+function loop(){
+
+update()
+draw()
+requestAnimationFrame(loop)
+
+}
+
+loop()
+
+function buySkis(){
+
+if(money>=50){
+
+money-=50
+player.skis++
+
+document.getElementById("money").innerText=money
+
+}
+
+}
+
+function buyClothes(){
+
+if(money>=30){
+
+money-=30
+player.clothes++
+
+document.getElementById("money").innerText=money
+
+}
+
+}
+
+function buyHelmet(){
+
+if(money>=40){
+
+money-=40
+player.helmet=true
+
+document.getElementById("money").innerText=money
+
+}
+
+}
+
+</script>
+
+</body>
+</html>
